@@ -5,9 +5,9 @@ from sqlalchemy import select
 from app.models.user import User
 from app.schemas.auth import SignUpRequest, SignInRequest, ChangePasswordRequest
 from app.schemas.user import UserResponse
-from .jwt_service import JwtService
+from ..jwt_service import JwtService
 from .user_service import UserService
-from .exceptions import BadRequestException, UnauthorizedException
+from ..exceptions import BadRequestException, UnauthorizedException
 
 class AuthenticationService:
     def __init__(self, db: AsyncSession, user_service: UserService, jwt_service: JwtService):

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import jwt
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 settings = get_settings()
 

@@ -5,7 +5,7 @@ from typing import Optional
 import base64
 import io
 import uuid
-from app.core.config import settings
+from app.core.config.config import settings
 
 class MinioService:
     def __init__(self):

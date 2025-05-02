@@ -11,7 +11,7 @@ from app.schemas.post import PostResponse, PostRequest, PageResponse
 from fastapi import UploadFile
 from .minio_service import MinioService
 from .user_service import UserService
-from .exceptions import ResourceNotFoundException, UnauthorizedException, BadRequestException
+from ..exceptions import ResourceNotFoundException, UnauthorizedException, BadRequestException
 
 class PostService:
     def __init__(self, db: AsyncSession, user_service: UserService, minio_service: MinioService):

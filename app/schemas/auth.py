@@ -41,11 +41,17 @@ class SignInRequest(BaseModel):
     )
     password: str = Field(
         ...,
-        min_length=4,
+        min_length=8,
         max_length=50,
         description="Пароль",
         example="my_1secret1_password"
     )
+
+    @validator('password')
+    def password_validation(cls, v):
+        if not any(c.isupper() for c in v) or not any(c.islower() for c in v) or not any(c.isdigit() for c in v):
+            raise ValueError("Пароль должен содержать хотя бы одну: заглавную букву, строчную букву, цифру")
+        return v
 
 class UserForResponse(BaseModel):
     username: str

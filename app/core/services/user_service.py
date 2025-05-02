@@ -8,7 +8,7 @@ from app.models.enums import Role
 from app.schemas.user import UserResponse, UserForResponse, UserEditRequest
 from fastapi import UploadFile
 from .minio_service import MinioService
-from .exceptions import ResourceNotFoundException
+from ..exceptions import ResourceNotFoundException
 
 class UserService:
     def __init__(self, db: AsyncSession, minio_service: MinioService):

@@ -1,8 +1,8 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.core.jwt_service import JWTService
-from app.core.user_service import UserService
-from app.core.config import get_settings
+from app.core.services.user_service import UserService
+from app.core.config.config import get_settings
 from app.core.exceptions import UnauthorizedException
 
 settings = get_settings()

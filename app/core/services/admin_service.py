@@ -1,6 +1,6 @@
 from app.models.enums import Role
 from .user_service import UserService
-from .exceptions import UnauthorizedException
+from ..exceptions import UnauthorizedException
 
 class AdminService(UserService):
     async def get_admin(self) -> None:

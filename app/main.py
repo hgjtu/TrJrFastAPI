@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 from app.api.v1.endpoints import auth, user, post
 from app.core.database import engine, Base
 

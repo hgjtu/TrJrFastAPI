@@ -1,7 +1,7 @@
 from app.models.enums import PostStatus
 from .user_service import UserService
 from .post_service import PostService
-from .exceptions import ResourceNotFoundException, UnauthorizedException, BadRequestException
+from ..exceptions import ResourceNotFoundException, UnauthorizedException, BadRequestException
 
 class ModeratorService(UserService):
     def __init__(self, db, post_service: PostService):

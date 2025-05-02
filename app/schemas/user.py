@@ -1,18 +1,37 @@
 from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional
+from app.models.enums import Role
+
+class UserForResponse(BaseModel):
+    """Объект пользователя для респонса"""
+    username: str = Field(
+        ...,
+        description="Имя пользователя",
+        example="Jon"
+    )
+    image: Optional[str] = Field(
+        None,
+        description="base64 изображение",
+        example="none-user-img"
+    )
+    role: Role = Field(
+        ...,
+        description="Роль пользователя",
+        example="USER"
+    )
 
 class ChangePasswordRequest(BaseModel):
     oldPassword: str = Field(
         ...,
         min_length=8,
-        max_length=255,
+        max_length=50,
         description="Старый пароль",
         example="my_1secret1_password"
     )
     newPassword: str = Field(
         ...,
         min_length=8,
-        max_length=255,
+        max_length=50,
         description="Новый пароль",
         example="my_1secret1_password2"
     )
@@ -21,6 +40,8 @@ class ChangePasswordRequest(BaseModel):
     def password_validation(cls, v):
         if not any(c.isupper() for c in v) or not any(c.islower() for c in v) or not any(c.isdigit() for c in v):
             raise ValueError("Пароль должен содержать хотя бы одну: заглавную букву, строчную букву, цифру")
+        if not all(c.isalnum() for c in v):
+            raise ValueError("Пароль может содержать только буквы и цифры")
         return v
 
 class UserEditRequest(BaseModel):
@@ -32,13 +53,8 @@ class UserEditRequest(BaseModel):
         example="jondoe@gmail.com"
     )
 
-class UserForResponse(BaseModel):
-    username: str
-    email: EmailStr
-    image: Optional[str] = None
-
 class UserMinResponse(BaseModel):
-    user: UserForResponse
+    user: dict  # Здесь будет UserForResponse из другого модуля
 
 class UserResponse(BaseModel):
     username: str = Field(..., description="Логин пользователя", example="Jon2000")
