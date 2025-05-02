@@ -166,115 +166,133 @@ class PostService:
         return post
 
     async def find_all_posts(self, page: int, limit: int, sort: str, search: Optional[str] = None) -> PageResponse[PostResponse]:
-        query = select(Post)
+        try:
+            query = select(Post)
 
-        # Apply filters based on sort
-        if sort == "my-posts":
-            current_user = await self.user_service.get_current_user()
-            query = query.where(Post.author_id == current_user.id)
-        elif sort == "moderator":
-            query = query.where(Post.status == PostStatus.STATUS_NOT_CHECKED)
-        else:
-            query = query.where(Post.status != PostStatus.STATUS_DENIED)
+            # Apply filters based on sort
+            if sort == "my-posts":
+                current_user = await self.user_service.get_current_user()
+                query = query.where(Post.author_id == current_user.id)
+            elif sort == "moderator":
+                query = query.where(Post.status == PostStatus.STATUS_NOT_CHECKED)
+            else:
+                query = query.where(Post.status != PostStatus.STATUS_DENIED)
 
-        # Apply search filters
-        if search:
-            search_params = dict(param.split('=') for param in search.split('&') if '=' in param)
+            # Apply search filters
+            if search:
+                try:
+                    search_params = dict(param.split('=') for param in search.split('&') if '=' in param)
+                    
+                    if "author" in search_params and sort != "my-posts":
+                        query = query.join(User).where(User.username.ilike(f"%{search_params['author']}%"))
+                    
+                    if "title" in search_params:
+                        query = query.where(Post.title.ilike(f"%{search_params['title']}%"))
+                    
+                    if "location" in search_params:
+                        query = query.where(Post.location.ilike(f"%{search_params['location']}%"))
+                    
+                    if "startDate" in search_params or "endDate" in search_params:
+                        try:
+                            start_date = datetime.fromisoformat(search_params.get("startDate", "")) if "startDate" in search_params else None
+                            end_date = datetime.fromisoformat(search_params.get("endDate", "")) if "endDate" in search_params else None
+                            
+                            if start_date:
+                                query = query.where(Post.date >= start_date)
+                            if end_date:
+                                query = query.where(Post.date <= end_date)
+                        except ValueError as e:
+                            raise BadRequestException(f"Invalid date format: {str(e)}")
+                except Exception as e:
+                    raise BadRequestException(f"Invalid search parameters: {str(e)}")
+
+            # Apply sorting
+            if sort == "my-posts":
+                query = query.order_by(Post.status, Post.date.desc())
+            else:
+                query = query.order_by(Post.status.desc(), Post.date.desc())
+
+            # Apply pagination
+            total = await self.db.scalar(select(func.count()).select_from(query.subquery()))
+            query = query.offset(page * limit).limit(limit)
             
-            if "author" in search_params and sort != "my-posts":
-                query = query.join(User).where(User.username.ilike(f"%{search_params['author']}%"))
-            
-            if "title" in search_params:
-                query = query.where(Post.title.ilike(f"%{search_params['title']}%"))
-            
-            if "location" in search_params:
-                query = query.where(Post.location.ilike(f"%{search_params['location']}%"))
-            
-            if "startDate" in search_params or "endDate" in search_params:
-                start_date = datetime.fromisoformat(search_params.get("startDate", "")) if "startDate" in search_params else None
-                end_date = datetime.fromisoformat(search_params.get("endDate", "")) if "endDate" in search_params else None
-                
-                if start_date:
-                    query = query.where(Post.date >= start_date)
-                if end_date:
-                    query = query.where(Post.date <= end_date)
+            result = await self.db.execute(query)
+            posts = result.scalars().all()
 
-        # Apply sorting
-        if sort == "my-posts":
-            query = query.order_by(Post.status, Post.date.desc())
-        else:
-            query = query.order_by(Post.status.desc(), Post.date.desc())
+            content = []
+            for post in posts:
+                is_liked = False
+                try:
+                    is_liked = await self.user_service.is_liked_post(post)
+                except Exception:
+                    pass
 
-        # Apply pagination
-        total = await self.db.scalar(select(func.count()).select_from(query.subquery()))
-        query = query.offset(page * limit).limit(limit)
-        
-        result = await self.db.execute(query)
-        posts = result.scalars().all()
+                content.append(PostResponse(
+                    id=post.id,
+                    title=post.title,
+                    author=post.author.username,
+                    date=post.date,
+                    location=post.location,
+                    description=post.description,
+                    image=await self.minio_service.get_file_as_base64(post.image_name),
+                    likes=post.likes,
+                    is_liked=is_liked,
+                    status=post.status
+                ))
 
-        content = []
-        for post in posts:
-            is_liked = False
-            try:
-                is_liked = await self.user_service.is_liked_post(post)
-            except Exception:
-                pass
-
-            content.append(PostResponse(
-                id=post.id,
-                title=post.title,
-                author=post.author.username,
-                date=post.date,
-                location=post.location,
-                description=post.description,
-                image=await self.minio_service.get_file_as_base64(post.image_name),
-                likes=post.likes,
-                is_liked=is_liked,
-                status=post.status
-            ))
-
-        return PageResponse(
-            content=content,
-            page=page,
-            size=limit,
-            total_elements=total,
-            total_pages=(total + limit - 1) // limit,
-            is_first=page == 0,
-            is_last=page * limit + limit >= total
-        )
+            return PageResponse(
+                content=content,
+                page=page,
+                size=limit,
+                total_elements=total,
+                total_pages=(total + limit - 1) // limit,
+                is_first=page == 0,
+                is_last=page * limit + limit >= total
+            )
+        except Exception as e:
+            raise BadRequestException(f"Failed to get posts: {str(e)}")
 
     async def find_recommended_posts(self) -> PageResponse[PostResponse]:
-        query = select(Post).where(Post.status != PostStatus.STATUS_DENIED).order_by(Post.likes.desc()).limit(5)
-        result = await self.db.execute(query)
-        posts = result.scalars().all()
+        try:
+            query = select(Post).where(
+                Post.status != PostStatus.STATUS_DENIED
+            ).order_by(
+                Post.likes.desc(),
+                Post.date.desc()
+            ).limit(5)
+            
+            result = await self.db.execute(query)
+            posts = result.scalars().all()
 
-        content = []
-        for post in posts:
-            is_liked = False
-            try:
-                is_liked = await self.user_service.is_liked_post(post)
-            except Exception:
-                pass
+            content = []
+            for post in posts:
+                is_liked = False
+                try:
+                    is_liked = await self.user_service.is_liked_post(post)
+                except Exception:
+                    pass
 
-            content.append(PostResponse(
-                id=post.id,
-                title=post.title,
-                author=post.author.username,
-                date=post.date,
-                location=post.location,
-                description=post.description,
-                image=await self.minio_service.get_file_as_base64(post.image_name),
-                likes=post.likes,
-                is_liked=is_liked,
-                status=post.status
-            ))
+                content.append(PostResponse(
+                    id=post.id,
+                    title=post.title,
+                    author=post.author.username,
+                    date=post.date,
+                    location=post.location,
+                    description=post.description,
+                    image=await self.minio_service.get_file_as_base64(post.image_name),
+                    likes=post.likes,
+                    is_liked=is_liked,
+                    status=post.status
+                ))
 
-        return PageResponse(
-            content=content,
-            page=0,
-            size=5,
-            total_elements=len(content),
-            total_pages=1,
-            is_first=True,
-            is_last=True
-        ) 
+            return PageResponse(
+                content=content,
+                page=0,
+                size=5,
+                total_elements=len(content),
+                total_pages=1,
+                is_first=True,
+                is_last=True
+            )
+        except Exception as e:
+            raise BadRequestException(f"Failed to get recommended posts: {str(e)}") 

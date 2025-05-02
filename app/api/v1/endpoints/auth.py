@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.auth import (
     SignUpRequest,
@@ -7,30 +8,64 @@ from app.schemas.auth import (
     JwtAuthenticationResponse,
     UserForResponse
 )
+from app.core.database import get_db
+from app.core.services.auth_service import AuthenticationService
+from app.core.services.user_service import UserService
+from app.core.jwt_service import JwtService
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @router.post("/sign-up", response_model=JwtAuthenticationResponse)
-async def sign_up(request: SignUpRequest):
-    # TODO: Implement sign up logic
-    return JwtAuthenticationResponse(
-        token="dummy_token",
-        user=UserForResponse(
-            username=request.username,
-            email=request.email,
-            image=None
-        )
+async def sign_up(
+    request: SignUpRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    auth_service = AuthenticationService(
+        db=db,
+        user_service=UserService(db),
+        jwt_service=JwtService()
     )
+    
+    try:
+        user_response = await auth_service.sign_up(request)
+        return JwtAuthenticationResponse(
+            token=user_response.token,
+            user=UserForResponse(
+                username=user_response.username,
+                email=user_response.email,
+                image=None
+            )
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.post("/sign-in", response_model=JwtAuthenticationResponse)
-async def sign_in(request: SignInRequest):
-    # TODO: Implement sign in logic
-    return JwtAuthenticationResponse(
-        token="dummy_token",
-        user=UserForResponse(
-            username=request.username,
-            email="user@example.com",
-            image=None
+async def sign_in(
+    request: SignInRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    auth_service = AuthenticationService(
+        db=db,
+        user_service=UserService(db),
+        jwt_service=JwtService()
+    )
+    
+    try:
+        user_response = await auth_service.sign_in(request)
+        return JwtAuthenticationResponse(
+            token=user_response.token,
+            user=UserForResponse(
+                username=user_response.username,
+                email=user_response.email,
+                image=None
+            )
         )
-    ) 
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        ) 

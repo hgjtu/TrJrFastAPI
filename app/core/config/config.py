@@ -2,6 +2,8 @@ from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
 from dotenv import load_dotenv
+from typing import Optional
+from pydantic import validator, Field
 
 load_dotenv()
 
@@ -10,31 +12,55 @@ class Settings(BaseSettings):
     APP_NAME: str = "travel-journal-web-service"
     PORT: int = 8010
     API_V1_STR: str = "/api/v1"
+    DEBUG: bool = False
     
     # Database settings
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:1234@localhost:5432/tr_jr_db")
-    POSTGRESQL_USER: str = os.getenv("POSTGRESQL_USER", "postgres")
-    POSTGRESQL_PASSWORD: str = os.getenv("POSTGRESQL_PASSWORD", "1234")
+    DATABASE_URL: str = Field(..., env="DATABASE_URL")
+    POSTGRESQL_USER: str = Field(..., env="POSTGRESQL_USER")
+    POSTGRESQL_PASSWORD: str = Field(..., env="POSTGRESQL_PASSWORD")
     
     # JWT settings
-    TOKEN_SIGNING_KEY: str = os.getenv("TOKEN_SIGNING_KEY", "Jssu8aTdbT8hjeZ610Z0IGeHfDQvr6EE6Gj56JWM1E80b4t2l2GC62PRMKTYEHDS")
+    TOKEN_SIGNING_KEY: str = Field(..., env="TOKEN_SIGNING_KEY")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 28800  # 20 days in minutes
     
     # MinIO settings
-    MINIO_URL: str = os.getenv("MINIO_URL", "http://127.0.0.1:9000")
-    MINIO_BUCKET: str = os.getenv("MINIO_BUCKET", "tr-jr-bucket")
-    MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+    MINIO_URL: str = Field(..., env="MINIO_URL")
+    MINIO_BUCKET: str = Field(..., env="MINIO_BUCKET")
+    MINIO_ACCESS_KEY: str = Field(..., env="MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY: str = Field(..., env="MINIO_SECRET_KEY")
     
     # File upload settings
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10MB
     
+    @validator("DATABASE_URL")
+    def validate_database_url(cls, v):
+        if not v:
+            raise ValueError("DATABASE_URL must be set")
+        return v
+    
+    @validator("TOKEN_SIGNING_KEY")
+    def validate_token_key(cls, v):
+        if not v or len(v) < 32:
+            raise ValueError("TOKEN_SIGNING_KEY must be at least 32 characters long")
+        return v
+    
+    @validator("MINIO_URL")
+    def validate_minio_url(cls, v):
+        if not v:
+            raise ValueError("MINIO_URL must be set")
+        return v
+    
     class Config:
         case_sensitive = True
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except Exception as e:
+        raise RuntimeError(f"Failed to load settings: {str(e)}")
 
-settings = Settings() 
+settings = get_settings() 

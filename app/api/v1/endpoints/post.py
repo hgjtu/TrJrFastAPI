@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional, List
-from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.post import PostRequest, PostResponse, PageResponse, PostStatus
 from app.models.enums import PostSort
 from app.core.auth import get_current_user
 from app.models.user import User
+from app.core.database import get_db
+from app.core.services.post_service import PostService
+from app.core.services.user_service import UserService
+from app.core.services.minio_service import MinioService
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -16,171 +20,165 @@ async def get_posts(
     page: int = Query(0, ge=0),
     size: int = Query(10, ge=1, le=100),
     sort: PostSort = Query(PostSort.DATE_DESC),
-    current_user: User = Depends(get_current_user)
+    search: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get paginated posts
-    """
-    # TODO: Implement actual post retrieval from database
-    return PageResponse(
-        content=[],
-        page=page,
-        size=size,
-        totalElements=0,
-        totalPages=0,
-        first=True,
-        last=True
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
     )
+    
+    try:
+        return await post_service.find_all_posts(page, size, sort.value, search)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.post("/", response_model=PostResponse)
 async def create_post(
     post: PostRequest,
-    current_user: User = Depends(get_current_user)
+    image: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Create a new post
-    """
-    # TODO: Implement actual post creation
-    return PostResponse(
-        id=1,
-        title=post.title,
-        author=current_user.username,
-        date=datetime.now(),
-        location=post.location,
-        description=post.description,
-        image=None,
-        likes=0,
-        isLiked=False,
-        status=PostStatus.STATUS_NOT_CHECKED
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
     )
+    
+    try:
+        return await post_service.create_post(post, image)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.get("/{post_id}", response_model=PostResponse)
 async def get_post(
     post_id: int,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get a specific post by ID
-    """
-    # TODO: Implement actual post retrieval
-    raise HTTPException(status_code=404, detail="Post not found")
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
+    )
+    
+    try:
+        return await post_service.get_post_data(post_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
 
 @router.put("/{post_id}", response_model=PostResponse)
 async def update_post(
     post_id: int,
     post: PostRequest,
-    current_user: User = Depends(get_current_user)
+    image: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Update a post
-    """
-    # TODO: Implement actual post update
-    raise HTTPException(status_code=404, detail="Post not found")
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
+    )
+    
+    try:
+        return await post_service.update_post_data(post, image)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.delete("/{post_id}")
 async def delete_post(
     post_id: int,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Delete a post
-    """
-    # TODO: Implement actual post deletion
-    raise HTTPException(status_code=404, detail="Post not found")
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
+    )
+    
+    try:
+        await post_service.delete_post(post_id)
+        return {"message": "Post deleted successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.post("/{post_id}/like")
 async def like_post(
     post_id: int,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Like a post
-    """
-    # TODO: Implement actual post liking
-    raise HTTPException(status_code=404, detail="Post not found")
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
+    )
+    
+    try:
+        likes = await post_service.like_post(post_id)
+        return {"likes": likes}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-@router.delete("/{post_id}/like")
-async def unlike_post(
+@router.put("/{post_id}/resubmit")
+async def resubmit_post(
     post_id: int,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Unlike a post
-    """
-    # TODO: Implement actual post unliking
-    raise HTTPException(status_code=404, detail="Post not found")
-
-@router.get("/get-post-data/{post_id}", response_model=PostResponse)
-async def get_post_data(post_id: int):
-    # TODO: Implement get post data logic
-    return PostResponse(
-        id=post_id,
-        title="Sample Title",
-        author="user",
-        date=datetime.now(),
-        location="Sample Location",
-        description="Sample Description",
-        image=None,
-        likes=0,
-        isLiked=False,
-        status=PostStatus.APPROVED
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
     )
+    
+    try:
+        await post_service.resubmit_post(post_id)
+        return {"message": "Post resubmitted successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-@router.put("/update-post-data", response_model=PostResponse)
-async def update_post_data(
-    post: PostRequest,
-    image: Optional[UploadFile] = File(None)
+@router.get("/recommended", response_model=PageResponse[PostResponse])
+async def get_recommended_posts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    # TODO: Implement update post logic
-    return PostResponse(
-        id=post.id or 1,
-        title=post.title,
-        author="user",
-        date=datetime.now(),
-        location=post.location,
-        description=post.description,
-        image=None,
-        likes=0,
-        isLiked=False,
-        status=PostStatus.PENDING
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
     )
-
-@router.delete("/delete-post/{post_id}")
-async def delete_post(post_id: int):
-    # TODO: Implement delete post logic
-    return {"message": f"Post {post_id} deleted"}
-
-@router.post("/like-post/{post_id}")
-async def like_post(post_id: int):
-    # TODO: Implement like post logic
-    return {"message": "Post liked"}
-
-@router.put("/resubmit/{post_id}")
-async def resubmit_post(post_id: int):
-    # TODO: Implement resubmit post logic
-    return {"message": "Post resubmitted"}
-
-@router.get("/get-posts-data", response_model=PageResponse)
-async def get_posts_data(
-    page: int = 0,
-    limit: int = 20,
-    sort: str = "created_at",
-    search: Optional[str] = None
-):
-    # TODO: Implement get posts data logic
-    return PageResponse(
-        content=[],
-        total_pages=0,
-        total_elements=0,
-        current_page=page
-    )
-
-@router.get("/get-recommended-posts-data", response_model=PageResponse)
-async def get_recommended_posts_data():
-    # TODO: Implement get recommended posts logic
-    return PageResponse(
-        content=[],
-        total_pages=0,
-        total_elements=0,
-        current_page=0
-    ) 
+    
+    try:
+        return await post_service.find_recommended_posts()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) 

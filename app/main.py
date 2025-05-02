@@ -3,6 +3,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config.config import get_settings
 from app.api.v1.endpoints import auth, user, post
 from app.core.database import engine, Base
+from app.core.exception_handlers import (
+    validation_exception_handler,
+    http_exception_handler,
+    resource_not_found_handler,
+    unauthorized_handler,
+    bad_request_handler,
+    storage_unavailable_handler,
+    sqlalchemy_error_handler,
+    general_exception_handler
+)
+from app.core.middleware.metrics import MetricsMiddleware
+from fastapi.exceptions import RequestValidationError, HTTPException
+from app.core.exceptions import (
+    ResourceNotFoundException,
+    UnauthorizedException,
+    BadRequestException,
+    StorageUnavailableException
+)
+from sqlalchemy.exc import SQLAlchemyError
 
 settings = get_settings()
 
@@ -16,6 +35,9 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# Добавляем middleware для метрик
+app.add_middleware(MetricsMiddleware)
+
 # Set up CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -24,6 +46,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(ResourceNotFoundException, resource_not_found_handler)
+app.add_exception_handler(UnauthorizedException, unauthorized_handler)
+app.add_exception_handler(BadRequestException, bad_request_handler)
+app.add_exception_handler(StorageUnavailableException, storage_unavailable_handler)
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 # Include routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
