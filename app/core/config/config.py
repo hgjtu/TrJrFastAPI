@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     PORT: int = 8010
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
+    CORS_ORIGINS: list[str] = ["*"]  # In production, replace with specific origins
     
     # Database settings
     DATABASE_URL: str = Field(..., env="DATABASE_URL")

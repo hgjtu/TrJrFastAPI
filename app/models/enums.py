@@ -16,4 +16,5 @@ class PostSort(str, Enum):
     LIKES_ASC = "likes_asc"
     LIKES_DESC = "likes_desc"
     STATUS_ASC = "status_asc"
-    STATUS_DESC = "status_desc" 
+    STATUS_DESC = "status_desc"
+    LATEST = "latest" 

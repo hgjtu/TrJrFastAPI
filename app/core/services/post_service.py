@@ -64,7 +64,7 @@ class PostService:
                 description=saved_post.description,
                 image=await self.minio_service.get_file_as_base64(saved_post.image_name),
                 likes=saved_post.likes,
-                is_liked=False,
+                isLiked=False,
                 status=saved_post.status
             )
         except (UnauthorizedException, BadRequestException):
@@ -104,7 +104,7 @@ class PostService:
                 description=updated_post.description,
                 image=await self.minio_service.get_file_as_base64(updated_post.image_name),
                 likes=updated_post.likes,
-                is_liked=await self.user_service.is_liked_post(updated_post),
+                isLiked=await self.user_service.is_liked_post(updated_post),
                 status=updated_post.status
             )
         except (UnauthorizedException, BadRequestException, ResourceNotFoundException):
@@ -136,7 +136,7 @@ class PostService:
                 description=post.description,
                 image=await self.minio_service.get_file_as_base64(post.image_name),
                 likes=post.likes,
-                is_liked=is_liked,
+                isLiked=is_liked,
                 status=post.status
             )
         except (UnauthorizedException, ResourceNotFoundException):
@@ -262,10 +262,11 @@ class PostService:
 
             # Apply filters based on sort
             if sort == "my-posts":
-                current_user = await self.user_service.get_current_user()
-                if not current_user:
+                try:
+                    current_user = await self.user_service.get_current_user()
+                    query = query.where(Post.author_id == current_user.id)
+                except Exception:
                     raise UnauthorizedException("User not authenticated")
-                query = query.where(Post.author_id == current_user.id)
             elif sort == "moderator":
                 query = query.where(Post.status == PostStatus.STATUS_NOT_CHECKED)
             else:
@@ -302,6 +303,18 @@ class PostService:
             # Apply sorting
             if sort == "my-posts":
                 query = query.order_by(Post.status, Post.date.desc())
+            elif sort == "latest" or sort == "date_desc":
+                query = query.order_by(Post.date.desc())
+            elif sort == "date_asc":
+                query = query.order_by(Post.date.asc())
+            elif sort == "likes_desc":
+                query = query.order_by(Post.likes.desc())
+            elif sort == "likes_asc":
+                query = query.order_by(Post.likes.asc())
+            elif sort == "status_desc":
+                query = query.order_by(Post.status.desc())
+            elif sort == "status_asc":
+                query = query.order_by(Post.status.asc())
             else:
                 query = query.order_by(Post.status.desc(), Post.date.desc())
 
@@ -314,7 +327,10 @@ class PostService:
 
             content = []
             for post in posts:
-                is_liked = await self.user_service.is_liked_post(post)
+                try:
+                    is_liked = await self.user_service.is_liked_post(post)
+                except Exception:
+                    is_liked = False
                 content.append(PostResponse(
                     id=post.id,
                     title=post.title,
@@ -324,7 +340,7 @@ class PostService:
                     description=post.description,
                     image=await self.minio_service.get_file_as_base64(post.image_name),
                     likes=post.likes,
-                    is_liked=is_liked,
+                    isLiked=is_liked,
                     status=post.status
                 ))
 
@@ -332,10 +348,10 @@ class PostService:
                 content=content,
                 page=page,
                 size=limit,
-                total_elements=total,
-                total_pages=(total + limit - 1) // limit,
-                is_first=page == 0,
-                is_last=page * limit + limit >= total
+                totalElements=total,
+                totalPages=(total + limit - 1) // limit,
+                first=page == 0,
+                last=page * limit + limit >= total
             )
         except (UnauthorizedException, BadRequestException):
             raise
@@ -359,7 +375,10 @@ class PostService:
 
             content = []
             for post in posts:
-                is_liked = await self.user_service.is_liked_post(post)
+                try:
+                    is_liked = await self.user_service.is_liked_post(post)
+                except Exception:
+                    is_liked = False
                 content.append(PostResponse(
                     id=post.id,
                     title=post.title,
@@ -369,7 +388,7 @@ class PostService:
                     description=post.description,
                     image=await self.minio_service.get_file_as_base64(post.image_name),
                     likes=post.likes,
-                    is_liked=is_liked,
+                    isLiked=is_liked,
                     status=post.status
                 ))
 
@@ -377,10 +396,13 @@ class PostService:
                 content=content,
                 page=0,
                 size=5,
-                total_elements=len(content),
-                total_pages=1,
-                is_first=True,
-                is_last=True
+                totalElements=len(content),
+                totalPages=1,
+                first=True,
+                last=True
             )
         except Exception as e:
-            raise BadRequestException(f"Failed to get recommended posts: {str(e)}") 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error finding recommended posts: {str(e)}"
+            ) 

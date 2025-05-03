@@ -20,10 +20,11 @@ async def set_decision(
     decision: str,
     db: AsyncSession = Depends(get_db)
 ):
+    minio_service = MinioService()
     post_service = PostService(
         db=db,
-        user_service=UserService(db),
-        minio_service=MinioService()
+        user_service=UserService(db, minio_service),
+        minio_service=minio_service
     )
     moderator_service = ModeratorService(db, post_service)
     

@@ -5,17 +5,22 @@ from typing import Optional
 import base64
 import io
 import uuid
+from urllib.parse import urlparse
 from app.core.config.config import settings
 
 class MinioService:
     def __init__(self):
+        # Parse the URL to get just the host and port
+        parsed_url = urlparse(settings.MINIO_URL)
+        endpoint = f"{parsed_url.hostname}:{parsed_url.port}"
+        
         self.client = Minio(
-            settings.MINIO_ENDPOINT,
+            endpoint=endpoint,
             access_key=settings.MINIO_ACCESS_KEY,
             secret_key=settings.MINIO_SECRET_KEY,
-            secure=settings.MINIO_SECURE
+            secure=False
         )
-        self.bucket_name = settings.MINIO_BUCKET_NAME
+        self.bucket_name = settings.MINIO_BUCKET
 
     async def upload_file(self, file: UploadFile) -> str:
         """Upload a file to MinIO"""

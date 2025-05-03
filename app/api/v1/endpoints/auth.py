@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.services.auth_service import AuthenticationService
 from app.core.services.user_service import UserService
 from app.core.services.jwt_service import JWTService
+from app.core.services.minio_service import MinioService
 
 router = APIRouter(
     prefix="/auth",
@@ -25,9 +26,10 @@ async def sign_up(
     request: SignUpRequest,
     db: AsyncSession = Depends(get_db)
 ):
+    minio_service = MinioService()
     auth_service = AuthenticationService(
         db=db,
-        user_service=UserService(db),
+        user_service=UserService(db, minio_service),
         jwt_service=JWTService()
     )
     
@@ -52,9 +54,10 @@ async def sign_in(
     request: SignInRequest,
     db: AsyncSession = Depends(get_db)
 ):
+    minio_service = MinioService()
     auth_service = AuthenticationService(
         db=db,
-        user_service=UserService(db),
+        user_service=UserService(db, minio_service),
         jwt_service=JWTService()
     )
     

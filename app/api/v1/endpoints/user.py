@@ -8,7 +8,6 @@ from app.schemas.user import (
     UserEditRequest,
     ChangePasswordRequest,
     UserResponse,
-    UserForResponse,
     UserMinResponse
 )
 from app.core.services.user_service import get_current_user
@@ -26,12 +25,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @router.get("/check-session", response_model=UserMinResponse)
 async def check_session(
-    current_user: User = Depends(get_current_user),
+    authorization: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    user_service = UserService(db)
+    minio_service = MinioService()
+    user_service = UserService(db, minio_service)
     try:
-        return await user_service.get_user_min_data(current_user.id)
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+            current_user = await get_current_user(token, db)
+            return await user_service.get_user_min_data(current_user.id)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not authenticated"
+            )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -43,7 +51,8 @@ async def get_user_data(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    user_service = UserService(db)
+    minio_service = MinioService()
+    user_service = UserService(db, minio_service)
     try:
         return await user_service.get_user_data(current_user.id)
     except Exception as e:
@@ -59,8 +68,8 @@ async def update_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    user_service = UserService(db)
     minio_service = MinioService()
+    user_service = UserService(db, minio_service)
     try:
         return await user_service.update_user_data(current_user.id, user, image)
     except Exception as e:
@@ -75,7 +84,8 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    user_service = UserService(db)
+    minio_service = MinioService()
+    user_service = UserService(db, minio_service)
     try:
         await user_service.change_password(current_user.id, request)
         return {"message": "Password changed successfully"}
@@ -90,7 +100,8 @@ async def reset_user_image(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    user_service = UserService(db)
+    minio_service = MinioService()
+    user_service = UserService(db, minio_service)
     try:
         await user_service.reset_user_image(current_user.id)
         return {"message": "User image reset successfully"}
