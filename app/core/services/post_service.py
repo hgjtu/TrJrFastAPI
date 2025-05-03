@@ -20,150 +20,241 @@ class PostService:
         self.minio_service = minio_service
 
     async def save(self, post: Post) -> Post:
-        self.db.add(post)
-        await self.db.commit()
-        await self.db.refresh(post)
-        return post
+        try:
+            self.db.add(post)
+            await self.db.commit()
+            await self.db.refresh(post)
+            return post
+        except Exception as e:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}"
+            )
 
     async def create_post(self, create_post_request: PostRequest, image_file: Optional[UploadFile] = None) -> PostResponse:
-        current_user = await self.user_service.get_current_user()
+        try:
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        new_post = Post(
-            title=create_post_request.title,
-            author=current_user,
-            date=datetime.utcnow(),
-            location=create_post_request.location,
-            description=create_post_request.description,
-            image_name="default-post-img.png" if not image_file else await self.minio_service.upload_file(image_file),
-            likes=0,
-            status=PostStatus.STATUS_NOT_CHECKED
-        )
+            image_name = "default-post-img.png"
+            if image_file and image_file.filename:
+                image_name = await self.minio_service.upload_file(image_file)
 
-        saved_post = await self.save(new_post)
+            new_post = Post(
+                title=create_post_request.title,
+                author=current_user,
+                date=datetime.utcnow(),
+                location=create_post_request.location,
+                description=create_post_request.description,
+                image_name=image_name,
+                likes=0,
+                status=PostStatus.STATUS_NOT_CHECKED
+            )
 
-        return PostResponse(
-            id=saved_post.id,
-            title=saved_post.title,
-            author=saved_post.author.username,
-            date=saved_post.date,
-            location=saved_post.location,
-            description=saved_post.description,
-            image=await self.minio_service.get_file_as_base64(saved_post.image_name),
-            likes=saved_post.likes,
-            is_liked=False,
-            status=saved_post.status
-        )
+            saved_post = await self.save(new_post)
+
+            return PostResponse(
+                id=saved_post.id,
+                title=saved_post.title,
+                author=saved_post.author.username,
+                date=saved_post.date,
+                location=saved_post.location,
+                description=saved_post.description,
+                image=await self.minio_service.get_file_as_base64(saved_post.image_name),
+                likes=saved_post.likes,
+                is_liked=False,
+                status=saved_post.status
+            )
+        except (UnauthorizedException, BadRequestException):
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating post: {str(e)}"
+            )
 
     async def update_post_data(self, post_edit_request: PostRequest, image_file: Optional[UploadFile] = None) -> PostResponse:
-        current_user = await self.user_service.get_current_user()
-        post = await self.get_post_by_id(post_edit_request.id)
+        try:
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
-            raise UnauthorizedException("You are not authorized to edit this post")
+            post = await self.get_post_by_id(post_edit_request.id)
 
-        post.title = post_edit_request.title
-        post.location = post_edit_request.location
-        post.description = post_edit_request.description
+            if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
+                raise UnauthorizedException("You are not authorized to edit this post")
 
-        if image_file and image_file.filename:
-            post.image_name = await self.minio_service.upload_file(image_file)
+            post.title = post_edit_request.title
+            post.location = post_edit_request.location
+            post.description = post_edit_request.description
 
-        updated_post = await self.save(post)
+            if image_file and image_file.filename:
+                post.image_name = await self.minio_service.upload_file(image_file)
 
-        return PostResponse(
-            id=updated_post.id,
-            title=updated_post.title,
-            author=updated_post.author.username,
-            date=updated_post.date,
-            location=updated_post.location,
-            description=updated_post.description,
-            image=await self.minio_service.get_file_as_base64(updated_post.image_name),
-            likes=updated_post.likes,
-            is_liked=await self.user_service.is_liked_post(updated_post),
-            status=updated_post.status
-        )
+            updated_post = await self.save(post)
+
+            return PostResponse(
+                id=updated_post.id,
+                title=updated_post.title,
+                author=updated_post.author.username,
+                date=updated_post.date,
+                location=updated_post.location,
+                description=updated_post.description,
+                image=await self.minio_service.get_file_as_base64(updated_post.image_name),
+                likes=updated_post.likes,
+                is_liked=await self.user_service.is_liked_post(updated_post),
+                status=updated_post.status
+            )
+        except (UnauthorizedException, BadRequestException, ResourceNotFoundException):
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error updating post: {str(e)}"
+            )
 
     async def get_post_data(self, post_id: int) -> PostResponse:
-        post = await self.get_post_by_id(post_id)
-        current_user = await self.user_service.get_current_user()
-
-        if post.status == PostStatus.STATUS_NOT_CHECKED and post.author.username != current_user.username:
-            raise UnauthorizedException("You are not authorized to view this post")
-
-        is_liked = False
-
         try:
-            is_liked = await self.user_service.is_liked_post(post)
-        except Exception:
-            pass
+            post = await self.get_post_by_id(post_id)
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        return PostResponse(
-            id=post.id,
-            title=post.title,
-            author=post.author.username,
-            date=post.date,
-            location=post.location,
-            description=post.description,
-            image=await self.minio_service.get_file_as_base64(post.image_name),
-            likes=post.likes,
-            is_liked=is_liked,
-            status=post.status
-        )
+            if post.status == PostStatus.STATUS_NOT_CHECKED and post.author.username != current_user.username:
+                raise UnauthorizedException("You are not authorized to view this post")
+
+            is_liked = await self.user_service.is_liked_post(post)
+
+            return PostResponse(
+                id=post.id,
+                title=post.title,
+                author=post.author.username,
+                date=post.date,
+                location=post.location,
+                description=post.description,
+                image=await self.minio_service.get_file_as_base64(post.image_name),
+                likes=post.likes,
+                is_liked=is_liked,
+                status=post.status
+            )
+        except (UnauthorizedException, ResourceNotFoundException):
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error getting post data: {str(e)}"
+            )
 
     async def delete_post(self, post_id: int) -> None:
-        current_user = await self.user_service.get_current_user()
-        post = await self.get_post_by_id(post_id)
+        try:
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
-            raise UnauthorizedException("You are not authorized to delete this post")
+            post = await self.get_post_by_id(post_id)
 
-        await self.db.delete(post)
-        await self.db.commit()
+            if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
+                raise UnauthorizedException("You are not authorized to delete this post")
+
+            await self.db.delete(post)
+            await self.db.commit()
+        except (UnauthorizedException, ResourceNotFoundException):
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error deleting post: {str(e)}"
+            )
 
     async def like_post(self, post_id: int) -> int:
-        post = await self.get_post_by_id(post_id)
-        current_user = await self.user_service.get_current_user()
+        try:
+            post = await self.get_post_by_id(post_id)
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        if await self.user_service.is_liked_post(post):
-            post.likes -= 1
-            await self.user_service.delete_like(post)
-        else:
-            post.likes += 1
-            await self.user_service.add_like(post)
+            is_liked = await self.user_service.is_liked_post(post)
+            if is_liked:
+                post.likes -= 1
+                await self.user_service.delete_like(post)
+            else:
+                post.likes += 1
+                await self.user_service.add_like(post)
 
-        await self.save(post)
-        return post.likes
+            await self.save(post)
+            return post.likes
+        except (UnauthorizedException, ResourceNotFoundException):
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error updating like: {str(e)}"
+            )
 
     async def resubmit_post(self, post_id: int) -> None:
-        post = await self.get_post_by_id(post_id)
-        current_user = await self.user_service.get_current_user()
+        try:
+            post = await self.get_post_by_id(post_id)
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
-            raise UnauthorizedException("You are not authorized to resubmit this post")
+            if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
+                raise UnauthorizedException("You are not authorized to resubmit this post")
 
-        if post.status != PostStatus.STATUS_REJECTED:
-            raise BadRequestException("Only rejected posts can be resubmitted")
+            if post.status != PostStatus.STATUS_REJECTED:
+                raise BadRequestException("Only rejected posts can be resubmitted")
 
-        post.status = PostStatus.STATUS_NOT_CHECKED
-        await self.save(post)
+            post.status = PostStatus.STATUS_NOT_CHECKED
+            await self.save(post)
+        except (UnauthorizedException, BadRequestException, ResourceNotFoundException):
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error resubmitting post: {str(e)}"
+            )
 
     async def reset_post_image(self, post_id: int) -> None:
-        post = await self.get_post_by_id(post_id)
-        current_user = await self.user_service.get_current_user()
+        try:
+            post = await self.get_post_by_id(post_id)
+            current_user = await self.user_service.get_current_user()
+            if not current_user:
+                raise UnauthorizedException("User not authenticated")
 
-        if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
-            raise UnauthorizedException("You are not authorized to reset this post's image")
+            if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
+                raise UnauthorizedException("You are not authorized to reset this post's image")
 
-        post.image_name = "default-post-img.png"
-        await self.save(post)
+            post.image_name = "default-post-img.png"
+            await self.save(post)
+        except (UnauthorizedException, ResourceNotFoundException):
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error resetting post image: {str(e)}"
+            )
 
     async def get_post_by_id(self, post_id: int) -> Post:
-        stmt = select(Post).where(Post.id == post_id)
-        result = await self.db.execute(stmt)
-        post = result.scalar_one_or_none()
-        if not post:
-            raise ResourceNotFoundException("Post not found")
-        return post
+        try:
+            stmt = select(Post).where(Post.id == post_id)
+            result = await self.db.execute(stmt)
+            post = result.scalar_one_or_none()
+            if not post:
+                raise ResourceNotFoundException("Post not found")
+            return post
+        except ResourceNotFoundException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error getting post: {str(e)}"
+            )
 
     async def find_all_posts(self, page: int, limit: int, sort: str, search: Optional[str] = None) -> PageResponse[PostResponse]:
         try:
@@ -172,6 +263,8 @@ class PostService:
             # Apply filters based on sort
             if sort == "my-posts":
                 current_user = await self.user_service.get_current_user()
+                if not current_user:
+                    raise UnauthorizedException("User not authenticated")
                 query = query.where(Post.author_id == current_user.id)
             elif sort == "moderator":
                 query = query.where(Post.status == PostStatus.STATUS_NOT_CHECKED)
@@ -221,12 +314,7 @@ class PostService:
 
             content = []
             for post in posts:
-                is_liked = False
-                try:
-                    is_liked = await self.user_service.is_liked_post(post)
-                except Exception:
-                    pass
-
+                is_liked = await self.user_service.is_liked_post(post)
                 content.append(PostResponse(
                     id=post.id,
                     title=post.title,
@@ -249,8 +337,13 @@ class PostService:
                 is_first=page == 0,
                 is_last=page * limit + limit >= total
             )
+        except (UnauthorizedException, BadRequestException):
+            raise
         except Exception as e:
-            raise BadRequestException(f"Failed to get posts: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error finding posts: {str(e)}"
+            )
 
     async def find_recommended_posts(self) -> PageResponse[PostResponse]:
         try:
@@ -266,12 +359,7 @@ class PostService:
 
             content = []
             for post in posts:
-                is_liked = False
-                try:
-                    is_liked = await self.user_service.is_liked_post(post)
-                except Exception:
-                    pass
-
+                is_liked = await self.user_service.is_liked_post(post)
                 content.append(PostResponse(
                     id=post.id,
                     title=post.title,

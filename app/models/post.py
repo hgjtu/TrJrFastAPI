@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from datetime import datetime
+from typing import Optional
 
 from app.models.base import Base
 from app.models.enums import PostStatus
@@ -19,13 +21,11 @@ class Post(Base):
     status = Column(SQLEnum(PostStatus), nullable=False, default=PostStatus.STATUS_NOT_CHECKED)
 
     # Relationships
-    author = relationship("User", back_populates="posts")
-    liked_users = relationship("User", secondary="user_post_likes", back_populates="liked_posts")
+    author = relationship("User", back_populates="posts", lazy="selectin")
+    liked_users = relationship("User", secondary="user_post_likes", back_populates="liked_posts", lazy="selectin")
 
-    @property
-    def is_liked(self) -> bool:
-        # This will be set by the service layer based on the current user
-        return False
+    async def is_liked_by(self, user_id: int) -> bool:
+        return any(user.id == user_id for user in self.liked_users)
 
     @property
     def image(self) -> str:

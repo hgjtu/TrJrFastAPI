@@ -1,8 +1,9 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config.config import get_settings
 from app.api.v1.endpoints import auth, user, post
-from app.core.database import engine, Base
+from app.core.database import engine, Base, get_db
 from app.core.exception_handlers import (
     validation_exception_handler,
     http_exception_handler,
@@ -22,25 +23,26 @@ from app.core.exceptions import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.middleware.metrics import MetricsMiddleware
+from contextlib import asynccontextmanager
 
 settings = get_settings()
 
-# Create database tables
-async def init_models():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+    yield
+    # Shutdown
+    await engine.dispose()
 
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan
 )
-
-@app.on_event("startup")
-async def startup_event():
-    await init_models()
 
 # Добавляем middleware для метрик
 app.add_middleware(MetricsMiddleware)

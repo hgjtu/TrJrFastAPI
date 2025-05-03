@@ -1,10 +1,12 @@
 from sqlalchemy import Column, Integer, String, Enum as SQLEnum, Table, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-
+from sqlalchemy.ext.asyncio import AsyncAttrs
+from app.models.base import Base
 from app.models.enums import Role
+from passlib.context import CryptContext
+from typing import Optional
 
-Base = declarative_base()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Association table for user-post likes
 user_post_likes = Table(
@@ -25,8 +27,23 @@ class User(Base):
     role = Column(SQLEnum(Role), nullable=False, default=Role.ROLE_USER)
 
     # Relationships
-    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
-    liked_posts = relationship("Post", secondary=user_post_likes, back_populates="liked_users")
+    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan", lazy="selectin")
+    liked_posts = relationship("Post", secondary=user_post_likes, back_populates="liked_users", lazy="selectin")
+
+    def __init__(self, **kwargs):
+        if 'password' in kwargs:
+            kwargs['password'] = self.get_password_hash(kwargs['password'])
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def get_password_hash(password: str) -> str:
+        return pwd_context.hash(password)
+
+    async def verify_password(self, plain_password: str) -> bool:
+        try:
+            return pwd_context.verify(plain_password, self.password)
+        except Exception:
+            return False
 
     @property
     def image_url(self) -> str:
