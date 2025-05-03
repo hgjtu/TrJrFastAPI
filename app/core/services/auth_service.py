@@ -3,14 +3,14 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.user import User
-from app.schemas.auth import SignUpRequest, SignInRequest, ChangePasswordRequest
-from app.schemas.user import UserResponse
-from ..jwt_service import JwtService
+from app.schemas.auth import SignUpRequest, SignInRequest
+from app.schemas.user import UserResponse, ChangePasswordRequest
+from app.core.services.jwt_service import JWTService
 from .user_service import UserService
 from ..exceptions import BadRequestException, UnauthorizedException
 
 class AuthenticationService:
-    def __init__(self, db: AsyncSession, user_service: UserService, jwt_service: JwtService):
+    def __init__(self, db: AsyncSession, user_service: UserService, jwt_service: JWTService):
         self.db = db
         self.user_service = user_service
         self.jwt_service = jwt_service
@@ -66,11 +66,11 @@ class AuthenticationService:
     async def change_password(self, change_password_request: ChangePasswordRequest) -> None:
         current_user = await self.user_service.get_current_user()
 
-        if not current_user.verify_password(change_password_request.old_password):
+        if not current_user.verify_password(change_password_request.oldPassword):
             raise UnauthorizedException("Invalid current password")
 
-        if change_password_request.new_password == change_password_request.old_password:
+        if change_password_request.newPassword == change_password_request.oldPassword:
             raise BadRequestException("New password must be different from current password")
 
-        current_user.password = change_password_request.new_password
+        current_user.password = change_password_request.newPassword
         await self.user_service.save(current_user) 

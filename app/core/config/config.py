@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     
     # JWT settings
     TOKEN_SIGNING_KEY: str = Field(..., env="TOKEN_SIGNING_KEY")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 28800  # 20 days in minutes
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(..., env="ACCESS_TOKEN_EXPIRE_MINUTES")
     
     # MinIO settings
     MINIO_URL: str = Field(..., env="MINIO_URL")
@@ -50,6 +50,13 @@ class Settings(BaseSettings):
         if not v:
             raise ValueError("MINIO_URL must be set")
         return v
+    
+    @validator("ACCESS_TOKEN_EXPIRE_MINUTES")
+    def validate_token_expire_minutes(cls, v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be a valid integer")
     
     class Config:
         case_sensitive = True

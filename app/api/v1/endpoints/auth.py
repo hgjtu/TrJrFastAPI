@@ -11,7 +11,7 @@ from app.schemas.auth import (
 from app.core.database import get_db
 from app.core.services.auth_service import AuthenticationService
 from app.core.services.user_service import UserService
-from app.core.jwt_service import JwtService
+from app.core.services.jwt_service import JWTService
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -24,7 +24,7 @@ async def sign_up(
     auth_service = AuthenticationService(
         db=db,
         user_service=UserService(db),
-        jwt_service=JwtService()
+        jwt_service=JWTService()
     )
     
     try:
@@ -51,7 +51,7 @@ async def sign_in(
     auth_service = AuthenticationService(
         db=db,
         user_service=UserService(db),
-        jwt_service=JwtService()
+        jwt_service=JWTService()
     )
     
     try:

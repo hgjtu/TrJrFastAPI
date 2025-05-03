@@ -1,6 +1,6 @@
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.exceptions import (

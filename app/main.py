@@ -13,7 +13,6 @@ from app.core.exception_handlers import (
     sqlalchemy_error_handler,
     general_exception_handler
 )
-from app.core.middleware.metrics import MetricsMiddleware
 from fastapi.exceptions import RequestValidationError, HTTPException
 from app.core.exceptions import (
     ResourceNotFoundException,
@@ -22,11 +21,15 @@ from app.core.exceptions import (
     StorageUnavailableException
 )
 from sqlalchemy.exc import SQLAlchemyError
+from app.core.middleware.metrics import MetricsMiddleware
 
 settings = get_settings()
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+async def init_models():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -34,6 +37,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+@app.on_event("startup")
+async def startup_event():
+    await init_models()
 
 # Добавляем middleware для метрик
 app.add_middleware(MetricsMiddleware)
@@ -58,9 +65,9 @@ app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
 # Include routers
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
-app.include_router(user.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
-app.include_router(post.router, prefix=f"{settings.API_V1_STR}/posts", tags=["posts"])
+app.include_router(auth.router, prefix=settings.API_V1_STR)
+app.include_router(user.router, prefix=settings.API_V1_STR)
+app.include_router(post.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():
