@@ -13,7 +13,11 @@ from app.core.services.auth_service import AuthenticationService
 from app.core.services.user_service import UserService
 from app.core.services.jwt_service import JWTService
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/auth",
+    tags=["Аутентификация"],
+    responses={404: {"description": "Not found"}},
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @router.post("/sign-up", response_model=JwtAuthenticationResponse)

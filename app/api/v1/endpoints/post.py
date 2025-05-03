@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.post import PostRequest, PostResponse, PageResponse, PostStatus
+from app.schemas.post import PostRequest, PostResponse, PageResponse
 from app.models.enums import PostSort
 from app.core.services.user_service import get_current_user
 from app.models.user import User
@@ -12,10 +12,14 @@ from app.core.services.post_service import PostService
 from app.core.services.user_service import UserService
 from app.core.services.minio_service import MinioService
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/posts",
+    tags=["Посты"],
+    responses={404: {"description": "Not found"}},
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-@router.get("/", response_model=PageResponse[PostResponse])
+@router.get("/get-posts-data", response_model=PageResponse[PostResponse])
 async def get_posts(
     page: int = Query(0, ge=0),
     size: int = Query(10, ge=1, le=100),
@@ -38,7 +42,7 @@ async def get_posts(
             detail=str(e)
         )
 
-@router.post("/", response_model=PostResponse)
+@router.post("/create-post", response_model=PostResponse)
 async def create_post(
     post: PostRequest,
     image: Optional[UploadFile] = File(None),
@@ -59,7 +63,7 @@ async def create_post(
             detail=str(e)
         )
 
-@router.get("/{post_id}", response_model=PostResponse)
+@router.get("/get-post-data/{post_id}", response_model=PostResponse)
 async def get_post(
     post_id: int,
     current_user: User = Depends(get_current_user),
@@ -79,9 +83,8 @@ async def get_post(
             detail=str(e)
         )
 
-@router.put("/{post_id}", response_model=PostResponse)
+@router.put("/update-post-data", response_model=PostResponse)
 async def update_post(
-    post_id: int,
     post: PostRequest,
     image: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
@@ -101,7 +104,7 @@ async def update_post(
             detail=str(e)
         )
 
-@router.delete("/{post_id}")
+@router.delete("/delete-post/{post_id}")
 async def delete_post(
     post_id: int,
     current_user: User = Depends(get_current_user),
@@ -122,7 +125,7 @@ async def delete_post(
             detail=str(e)
         )
 
-@router.post("/{post_id}/like")
+@router.post("/like-post/{post_id}")
 async def like_post(
     post_id: int,
     current_user: User = Depends(get_current_user),
@@ -143,7 +146,7 @@ async def like_post(
             detail=str(e)
         )
 
-@router.put("/{post_id}/resubmit")
+@router.put("/resubmit/{post_id}")
 async def resubmit_post(
     post_id: int,
     current_user: User = Depends(get_current_user),
@@ -164,7 +167,7 @@ async def resubmit_post(
             detail=str(e)
         )
 
-@router.get("/recommended", response_model=PageResponse[PostResponse])
+@router.get("/get-recommended-posts-data", response_model=PageResponse[PostResponse])
 async def get_recommended_posts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

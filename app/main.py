@@ -2,7 +2,7 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config.config import get_settings
-from app.api.v1.endpoints import auth, user, post
+from app.api.v1.endpoints import auth, user, post, moderator, admin
 from app.core.database import engine, Base, get_db
 from app.core.exception_handlers import (
     validation_exception_handler,
@@ -70,6 +70,8 @@ app.add_exception_handler(Exception, general_exception_handler)
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(user.router, prefix=settings.API_V1_STR)
 app.include_router(post.router, prefix=settings.API_V1_STR)
+app.include_router(moderator.router, prefix=settings.API_V1_STR)
+app.include_router(admin.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():

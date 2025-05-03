@@ -1,10 +1,37 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+from app.core.services.moderator_service import ModeratorService
+from app.core.services.post_service import PostService
+from app.core.services.user_service import UserService
+from app.core.services.minio_service import MinioService
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/moderators",
+    tags=["Модераторы"],
+    responses={404: {"description": "Not found"}},
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @router.post("/{post_id}/decision/{decision}")
-async def set_decision(post_id: int, decision: str):
-    # TODO: Implement decision logic
-    return {"message": "Decision set successfully"} 
+async def set_decision(
+    post_id: int, 
+    decision: str,
+    db: AsyncSession = Depends(get_db)
+):
+    post_service = PostService(
+        db=db,
+        user_service=UserService(db),
+        minio_service=MinioService()
+    )
+    moderator_service = ModeratorService(db, post_service)
+    
+    try:
+        await moderator_service.set_decision(post_id, decision)
+        return {"message": "Decision set successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) 

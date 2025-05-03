@@ -17,7 +17,11 @@ from app.core.database import get_db
 from app.core.services.user_service import UserService
 from app.core.services.minio_service import MinioService
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/users",
+    tags=["Пользователи"],
+    responses={404: {"description": "Not found"}},
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @router.get("/check-session", response_model=UserMinResponse)
