@@ -44,6 +44,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Конфигурация CORS как я понял, кринж полный
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"], 
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"], 
+)
+
 # Добавляем middleware для метрик
 app.add_middleware(MetricsMiddleware)
 
