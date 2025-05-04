@@ -1,3 +1,4 @@
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -7,7 +8,7 @@ from app.core.config.config import get_settings
 
 settings = get_settings()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=10, bcrypt__ident="2a")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/sign-in")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -30,4 +31,4 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> Optional[dict]:
         payload = jwt.decode(token, settings.TOKEN_SIGNING_KEY, algorithms=["HS256"])
         return payload
     except JWTError:
-        raise credentials_exception 
+        raise credentials_exception

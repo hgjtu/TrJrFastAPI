@@ -30,6 +30,17 @@ class UserService:
             return user
         except Exception as e:
             await self.db.rollback()
+            if "duplicate key value violates unique constraint" in str(e):
+                if "username" in str(e):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Username already exists"
+                    )
+                elif "email" in str(e):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Email already exists"
+                    )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Database error: {str(e)}"

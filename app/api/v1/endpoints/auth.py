@@ -5,8 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.auth import (
     SignUpRequest,
     SignInRequest,
-    JwtAuthenticationResponse,
-    UserForResponse
+    JwtAuthenticationResponse
 )
 from app.core.database import get_db
 from app.core.services.auth_service import AuthenticationService
@@ -34,15 +33,7 @@ async def sign_up(
     )
     
     try:
-        user_response = await auth_service.sign_up(request)
-        return JwtAuthenticationResponse(
-            token=user_response.token,
-            user=UserForResponse(
-                username=user_response.username,
-                email=user_response.email,
-                image=None
-            )
-        )
+        return await auth_service.sign_up(request)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -62,17 +53,9 @@ async def sign_in(
     )
     
     try:
-        user_response = await auth_service.sign_in(request)
-        return JwtAuthenticationResponse(
-            token=user_response.token,
-            user=UserForResponse(
-                username=user_response.username,
-                email=user_response.email,
-                image=None
-            )
-        )
+        return await auth_service.sign_in(request)
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         ) 

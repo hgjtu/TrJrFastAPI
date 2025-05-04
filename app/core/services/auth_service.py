@@ -3,19 +3,22 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.user import User
-from app.schemas.auth import SignUpRequest, SignInRequest
+from app.schemas.auth import SignUpRequest, SignInRequest, JwtAuthenticationResponse, UserForResponse
 from app.schemas.user import UserResponse, ChangePasswordRequest
 from app.core.services.jwt_service import JWTService
+from app.core.authentication_manager import AuthenticationManager
 from .user_service import UserService
 from ..exceptions import BadRequestException, UnauthorizedException
+from ..security import get_password_hash, verify_password;
 
 class AuthenticationService:
     def __init__(self, db: AsyncSession, user_service: UserService, jwt_service: JWTService):
         self.db = db
         self.user_service = user_service
         self.jwt_service = jwt_service
+        self.auth_manager = AuthenticationManager(db)
 
-    async def sign_up(self, sign_up_request: SignUpRequest) -> UserResponse:
+    async def sign_up(self, sign_up_request: SignUpRequest) -> JwtAuthenticationResponse:
         try:
             # Check if username exists
             stmt = select(User).where(User.username == sign_up_request.username)
@@ -38,12 +41,20 @@ class AuthenticationService:
             user = await self.user_service.save(user)
 
             # Generate JWT token
-            token = self.jwt_service.generate_token(user.username)
+            token = self.jwt_service.generate_token({
+                "username": user.username,
+                "email": user.email,
+                "id": user.id,
+                "role": user.role
+            })
 
-            return UserResponse(
-                username=user.username,
-                email=user.email,
-                token=token
+            return JwtAuthenticationResponse(
+                token=token,
+                user=UserForResponse(
+                    username=user.username,
+                    email=user.email,
+                    image=user.image_name
+                )
             )
         except BadRequestException:
             raise
@@ -53,25 +64,31 @@ class AuthenticationService:
                 detail=f"Error during sign up: {str(e)}"
             )
 
-    async def sign_in(self, sign_in_request: SignInRequest) -> UserResponse:
+    async def sign_in(self, sign_in_request: SignInRequest) -> JwtAuthenticationResponse:
         try:
-            # Find user by username
-            stmt = select(User).where(User.username == sign_in_request.username)
-            result = await self.db.execute(stmt)
-            user = result.scalar_one_or_none()
-
-            if not user or not await user.verify_password(sign_in_request.password):
-                raise UnauthorizedException("Invalid username or password")
+            # Authenticate user using AuthenticationManager
+            user = await self.auth_manager.authenticate(
+                sign_in_request.username,
+                sign_in_request.password
+            )
 
             # Generate JWT token
-            token = self.jwt_service.generate_token(user.username)
+            token = self.jwt_service.generate_token({
+                "username": user.username,
+                "email": user.email,
+                "id": user.id,
+                "role": user.role
+            })
 
-            return UserResponse(
-                username=user.username,
-                email=user.email,
-                token=token
+            return JwtAuthenticationResponse(
+                token=token,
+                user=UserForResponse(
+                    username=user.username,
+                    email=user.email,
+                    image=user.image_name
+                )
             )
-        except UnauthorizedException:
+        except UnauthorizedException as e:
             raise
         except Exception as e:
             raise HTTPException(
@@ -85,13 +102,13 @@ class AuthenticationService:
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
-            if not await current_user.verify_password(change_password_request.oldPassword):
+            if not verify_password(change_password_request.oldPassword, current_user.password):
                 raise UnauthorizedException("Invalid current password")
 
             if change_password_request.newPassword == change_password_request.oldPassword:
                 raise BadRequestException("New password must be different from current password")
 
-            current_user.password = current_user.get_password_hash(change_password_request.newPassword)
+            current_user.password = get_password_hash(change_password_request.newPassword)
             await self.user_service.save(current_user)
         except (UnauthorizedException, BadRequestException):
             raise

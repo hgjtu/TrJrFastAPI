@@ -51,4 +51,7 @@ class PageResponse(BaseModel, Generic[T]):
     totalElements: int
     totalPages: int
     first: bool
-    last: bool 
+    last: bool
+
+class PageResponseWrapper(BaseModel, Generic[T]):
+    data: PageResponse[T] 

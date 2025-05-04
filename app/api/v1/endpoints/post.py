@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.post import PostRequest, PostResponse, PageResponse
+from app.schemas.post import PostRequest, PostResponse, PageResponse, PageResponseWrapper
 from app.models.enums import PostSort
 from app.core.services.user_service import get_current_user
 from app.models.user import User

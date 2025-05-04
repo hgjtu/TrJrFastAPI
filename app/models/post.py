@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, Sequence, String, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from datetime import datetime
 from typing import Optional
+import sqlalchemy as sa
 
 from app.models.base import Base
 from app.models.enums import PostStatus
@@ -10,7 +11,7 @@ from app.models.enums import PostStatus
 class Post(Base):
     __tablename__ = "posts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, Sequence('posts_seq'), primary_key=True, index=True, autoincrement=True)
     title = Column(String, nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     date = Column(DateTime, nullable=False, default=datetime.utcnow)

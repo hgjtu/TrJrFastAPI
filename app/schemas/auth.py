@@ -27,8 +27,8 @@ class SignUpRequest(BaseModel):
 
     @validator('password')
     def password_validation(cls, v):
-        if not any(c.isupper() for c in v) or not any(c.islower() for c in v) or not any(c.isdigit() for c in v):
-            raise ValueError("Пароль должен содержать хотя бы одну: заглавную букву, строчную букву, цифру")
+        if not any(c.islower() for c in v) or not any(c.isdigit() for c in v):
+            raise ValueError("Пароль должен содержать хотя бы одну строчную букву и цифру")
         return v
 
 class SignInRequest(BaseModel):
@@ -49,8 +49,8 @@ class SignInRequest(BaseModel):
 
     @validator('password')
     def password_validation(cls, v):
-        if not any(c.isupper() for c in v) or not any(c.islower() for c in v) or not any(c.isdigit() for c in v):
-            raise ValueError("Пароль должен содержать хотя бы одну: заглавную букву, строчную букву, цифру")
+        if not any(c.islower() for c in v) or not any(c.isdigit() for c in v):
+            raise ValueError("Пароль должен содержать хотя бы одну строчную букву и цифру")
         return v
 
 class UserForResponse(BaseModel):

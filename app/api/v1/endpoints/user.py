@@ -38,7 +38,7 @@ async def check_session(
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not authenticated"
+                detail=f"User not authenticated | {authorization} |"
             )
     except Exception as e:
         raise HTTPException(
