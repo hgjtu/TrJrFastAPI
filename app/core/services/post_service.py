@@ -273,7 +273,7 @@ class PostService:
                 query = query.where(Post.status != PostStatus.STATUS_DENIED)
 
             # Apply search filters
-            if search:
+            if search and search.strip():
                 try:
                     search_params = dict(param.split('=') for param in search.split('&') if '=' in param)
                     
@@ -353,12 +353,15 @@ class PostService:
                 first=page == 0,
                 last=page * limit + limit >= total
             )
-        except (UnauthorizedException, BadRequestException):
-            raise
+        except (UnauthorizedException, BadRequestException) as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error finding posts: {str(e)}"
+                detail=f"500: Error finding posts: {str(e)}"
             )
 
     async def find_recommended_posts(self) -> PageResponse[PostResponse]:

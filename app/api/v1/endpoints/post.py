@@ -36,10 +36,12 @@ async def get_posts(
     
     try:
         return await post_service.find_all_posts(page, limit, sort.value, search)
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error finding posts: {str(e)}"
         )
 
 @router.post("/create-post", response_model=PostResponse)
