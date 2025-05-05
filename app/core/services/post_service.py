@@ -32,9 +32,8 @@ class PostService:
                 detail=f"Database error: {str(e)}"
             )
 
-    async def create_post(self, create_post_request: PostRequest, image_file: Optional[UploadFile] = None) -> PostResponse:
+    async def create_post(self, current_user, create_post_request: PostRequest, image_file: Optional[UploadFile] = None) -> PostResponse:
         try:
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
@@ -75,9 +74,8 @@ class PostService:
                 detail=f"Error creating post: {str(e)}"
             )
 
-    async def update_post_data(self, post_edit_request: PostRequest, image_file: Optional[UploadFile] = None) -> PostResponse:
+    async def update_post_data(self, current_user, post_edit_request: PostRequest, image_file: Optional[UploadFile] = None) -> PostResponse:
         try:
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
@@ -104,7 +102,7 @@ class PostService:
                 description=updated_post.description,
                 image=await self.minio_service.get_file_as_base64(updated_post.image_name),
                 likes=updated_post.likes,
-                isLiked=await self.user_service.is_liked_post(updated_post),
+                isLiked=await self.user_service.is_liked_post(current_user.id, updated_post),
                 status=updated_post.status
             )
         except (UnauthorizedException, BadRequestException, ResourceNotFoundException):
@@ -115,17 +113,16 @@ class PostService:
                 detail=f"Error updating post: {str(e)}"
             )
 
-    async def get_post_data(self, post_id: int) -> PostResponse:
+    async def get_post_data(self, post_id: int, current_user: Optional[User] = None) -> PostResponse:
         try:
             post = await self.get_post_by_id(post_id)
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
             if post.status == PostStatus.STATUS_NOT_CHECKED and post.author.username != current_user.username:
                 raise UnauthorizedException("You are not authorized to view this post")
 
-            is_liked = await self.user_service.is_liked_post(post)
+            is_liked = await self.user_service.is_liked_post(current_user.id, post)
 
             return PostResponse(
                 id=post.id,
@@ -147,9 +144,8 @@ class PostService:
                 detail=f"Error getting post data: {str(e)}"
             )
 
-    async def delete_post(self, post_id: int) -> None:
+    async def delete_post(self, current_user, post_id: int) -> None:
         try:
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
@@ -169,14 +165,13 @@ class PostService:
                 detail=f"Error deleting post: {str(e)}"
             )
 
-    async def like_post(self, post_id: int) -> int:
+    async def like_post(self, current_user, post_id: int) -> int:
         try:
             post = await self.get_post_by_id(post_id)
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
-            is_liked = await self.user_service.is_liked_post(post)
+            is_liked = await self.user_service.is_liked_post(current_user.id, post)
             if is_liked:
                 post.likes -= 1
                 await self.user_service.delete_like(post)
@@ -195,10 +190,9 @@ class PostService:
                 detail=f"Error updating like: {str(e)}"
             )
 
-    async def resubmit_post(self, post_id: int) -> None:
+    async def resubmit_post(self, current_user, post_id: int) -> None:
         try:
             post = await self.get_post_by_id(post_id)
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
@@ -219,10 +213,9 @@ class PostService:
                 detail=f"Error resubmitting post: {str(e)}"
             )
 
-    async def reset_post_image(self, post_id: int) -> None:
+    async def reset_post_image(self, current_user, post_id: int) -> None:
         try:
             post = await self.get_post_by_id(post_id)
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
@@ -256,14 +249,13 @@ class PostService:
                 detail=f"Error getting post: {str(e)}"
             )
 
-    async def find_all_posts(self, page: int, limit: int, sort: str, search: Optional[str] = None) -> PageResponse[PostResponse]:
+    async def find_all_posts(self, page: int, limit: int, sort: str, search: Optional[str] = None, current_user: Optional[User] = None) -> PageResponse[PostResponse]:
         try:
             query = select(Post)
 
             # Apply filters based on sort
             if sort == "my-posts":
                 try:
-                    current_user = await self.user_service.get_current_user()
                     query = query.where(Post.author_id == current_user.id)
                 except Exception:
                     raise UnauthorizedException("User not authenticated")
@@ -328,7 +320,7 @@ class PostService:
             content = []
             for post in posts:
                 try:
-                    is_liked = await self.user_service.is_liked_post(post)
+                    is_liked = await self.user_service.is_liked_post(current_user.id, post)
                 except Exception:
                     is_liked = False
                 content.append(PostResponse(
@@ -378,10 +370,10 @@ class PostService:
 
             content = []
             for post in posts:
-                try:
-                    is_liked = await self.user_service.is_liked_post(post)
-                except Exception:
-                    is_liked = False
+                # try:
+                #     is_liked = await self.user_service.is_liked_post(current_user.id, post)
+                # except Exception:
+                #     is_liked = False
                 content.append(PostResponse(
                     id=post.id,
                     title=post.title,
@@ -391,7 +383,7 @@ class PostService:
                     description=post.description,
                     image=await self.minio_service.get_file_as_base64(post.image_name),
                     likes=post.likes,
-                    isLiked=is_liked,
+                    isLiked=False,
                     status=post.status
                 ))
 

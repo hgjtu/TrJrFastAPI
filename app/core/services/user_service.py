@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, Depends
-from typing import Optional
+from typing import Annotated, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.user import User
@@ -16,6 +16,7 @@ from app.core.services.jwt_service import JWTService
 from app.core.exceptions import UnauthorizedException
 from app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+
 
 class UserService:
     def __init__(self, db: AsyncSession, minio_service: MinioService):
@@ -75,9 +76,8 @@ class UserService:
                 detail=f"Error creating user: {str(e)}"
             )
 
-    async def update_user_data(self, user_edit_request: UserEditRequest, image_file: Optional[UploadFile] = None) -> Optional[UserResponse]:
+    async def update_user_data(self, current_user, user_edit_request: UserEditRequest, image_file: Optional[UploadFile] = None) -> Optional[UserResponse]:
         try:
-            current_user = await self.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
@@ -111,9 +111,8 @@ class UserService:
                 detail=f"Error updating user: {str(e)}"
             )
 
-    async def reset_user_image(self) -> None:
+    async def reset_user_image(self, current_user) -> None:
         try:
-            current_user = await self.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
             
@@ -127,16 +126,15 @@ class UserService:
                 detail=f"Error resetting user image: {str(e)}"
             )
 
-    async def get_user_data(self) -> Optional[UserResponse]:
+    async def get_user_data(self, current_user) -> Optional[UserResponse]:
         try:
-            user = await self.get_current_user()
-            if not user:
+            if not current_user:
                 raise UnauthorizedException("User not authenticated")
 
             return UserResponse(
-                username=user.username,
-                email=user.email,
-                image=await self.minio_service.get_file_as_base64(user.image_name)
+                username=current_user.username,
+                email=current_user.email,
+                image=await self.minio_service.get_file_as_base64(current_user.image_name)
             )
         except HTTPException:
             raise
@@ -146,16 +144,18 @@ class UserService:
                 detail=f"Error getting user data: {str(e)}"
             )
 
-    async def get_user_min_data(self) -> Optional[UserForResponse]:
+    async def get_user_min_data(self, current_user) -> Optional[UserForResponse]:
         try:
-            user = await self.get_current_user()
-            if not user:
+            if not current_user:
                 raise UnauthorizedException("User not authenticated")
+            
+            # image=await self.minio_service.get_file_as_base64(current_user.image_name)
 
             return UserForResponse(
-                username=user.username,
-                role=user.role,
-                image=await self.minio_service.get_file_as_base64(user.image_name)
+                username=current_user.username,
+                image=None,
+                role=current_user.role,
+                # image=None
             )
         except HTTPException:
             raise
@@ -173,61 +173,27 @@ class UserService:
             raise ResourceNotFoundException(f"User with username {username} not found")
         return user
 
-    async def get_current_user(self) -> User:
+
+    async def get_current_user(self, token) -> User:
         try:
-            return await get_current_user()
+            jwt_service = JWTService()
+            
+            # Verify and decode the token
+            payload = jwt_service.verify_token(token)
+            if payload is None:
+                raise UnauthorizedException(f"Invalid authentication credentials {token}")
+            
+            user = await self.get_by_username(payload.get("sub"))
+            if user is None:
+                raise UnauthorizedException("User not found")
+            
+            return user
+
         except Exception as e:
             raise UnauthorizedException(f"Authentication error: {str(e)}")
 
-    async def is_liked_post(self, post: Post) -> bool:
+    async def is_liked_post(self, current_user_id, post: Post) -> bool:
         try:
-            current_user = await self.get_current_user()
-            return await post.is_liked_by(current_user.id)
+            return await post.is_liked_by(current_user_id)
         except Exception:
             return False
-
-    async def add_like(self, post: Post) -> None:
-        try:
-            current_user = await self.get_current_user()
-            if not await post.is_liked_by(current_user.id):
-                post.liked_users.append(current_user)
-                await self.save(post)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error adding like: {str(e)}"
-            )
-
-    async def delete_like(self, post: Post) -> None:
-        try:
-            current_user = await self.get_current_user()
-            if await post.is_liked_by(current_user.id):
-                post.liked_users.remove(current_user)
-                await self.save(post)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error deleting like: {str(e)}"
-            )
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        jwt_service = JWTService()
-        user_service = UserService(db)
-        
-        # Verify and decode the token
-        payload = jwt_service.verify_token(token)
-        if payload is None:
-            raise UnauthorizedException("Invalid authentication credentials")
-            
-        # Get user from database
-        user = await user_service.get_by_username(payload.get("sub"))
-        if user is None:
-            raise UnauthorizedException("User not found")
-            
-        return user
-    except Exception as e:
-        raise UnauthorizedException(str(e))

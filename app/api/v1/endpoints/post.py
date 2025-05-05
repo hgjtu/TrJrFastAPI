@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.post import PostRequest, PostResponse, PageResponse, PageResponseWrapper
 from app.models.enums import PostSort
-from app.core.services.user_service import get_current_user
 from app.models.user import User
 from app.core.database import get_db
 from app.core.services.post_service import PostService
@@ -25,6 +24,7 @@ async def get_posts(
     limit: int = Query(10, ge=1, le=100),
     sort: PostSort = Query(PostSort.DATE_DESC),
     search: Optional[str] = None,
+    token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -33,9 +33,14 @@ async def get_posts(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    current_user = None
+    if(token != None):
+        user_service = UserService(db, minio_service)
+        current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.find_all_posts(page, limit, sort.value, search)
+        return await post_service.find_all_posts(page, limit, sort.value, search, current_user)
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -48,7 +53,7 @@ async def get_posts(
 async def create_post(
     post: PostRequest,
     image: Optional[UploadFile] = File(None),
-    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -57,9 +62,12 @@ async def create_post(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    user_service = UserService(db, minio_service)
+    current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.create_post(current_user.id, post, image)
+        return await post_service.create_post(current_user, post, image)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -69,6 +77,7 @@ async def create_post(
 @router.get("/get-post-data/{post_id}", response_model=PostResponse)
 async def get_post(
     post_id: int,
+    token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -77,9 +86,14 @@ async def get_post(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    current_user = None
+    if(token != None):
+        user_service = UserService(db, minio_service)
+        current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.find_post_by_id(post_id)
+        return await post_service.get_post_by_id(current_user, post_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -90,7 +104,7 @@ async def get_post(
 async def update_post(
     post: PostRequest,
     image: Optional[UploadFile] = File(None),
-    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -99,9 +113,12 @@ async def update_post(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    user_service = UserService(db, minio_service)
+    current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.update_post(current_user.id, post, image)
+        return await post_service.update_post_data(current_user, post, image)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,7 +128,7 @@ async def update_post(
 @router.delete("/delete-post/{post_id}")
 async def delete_post(
     post_id: int,
-    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -120,9 +137,12 @@ async def delete_post(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    user_service = UserService(db, minio_service)
+    current_user = await user_service.get_current_user(token)
     
     try:
-        await post_service.delete_post(current_user.id, post_id)
+        await post_service.delete_post(current_user, post_id)
         return {"message": "Post deleted successfully"}
     except Exception as e:
         raise HTTPException(
@@ -133,7 +153,7 @@ async def delete_post(
 @router.post("/like-post/{post_id}")
 async def like_post(
     post_id: int,
-    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -142,9 +162,12 @@ async def like_post(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    user_service = UserService(db, minio_service)
+    current_user = await user_service.get_current_user(token)
     
     try:
-        await post_service.like_post(current_user.id, post_id)
+        await post_service.like_post(current_user, post_id)
         return {"message": "Post liked successfully"}
     except Exception as e:
         raise HTTPException(
@@ -155,7 +178,7 @@ async def like_post(
 @router.put("/resubmit/{post_id}")
 async def resubmit_post(
     post_id: int,
-    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -164,9 +187,12 @@ async def resubmit_post(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
+
+    user_service = UserService(db, minio_service)
+    current_user = await user_service.get_current_user(token)
     
     try:
-        await post_service.resubmit_post(current_user.id, post_id)
+        await post_service.resubmit_post(current_user, post_id)
         return {"message": "Post resubmitted successfully"}
     except Exception as e:
         raise HTTPException(

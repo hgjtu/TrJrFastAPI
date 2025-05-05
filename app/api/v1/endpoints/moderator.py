@@ -18,6 +18,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 async def set_decision(
     post_id: int, 
     decision: str,
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
@@ -28,8 +29,11 @@ async def set_decision(
     )
     moderator_service = ModeratorService(db, post_service)
     
+    user_service = UserService(db, minio_service)
+    current_user = await user_service.get_current_user(token)
+    
     try:
-        await moderator_service.set_decision(post_id, decision)
+        await moderator_service.set_decision(current_user, post_id, decision)
         return {"message": "Decision set successfully"}
     except Exception as e:
         raise HTTPException(

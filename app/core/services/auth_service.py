@@ -96,9 +96,8 @@ class AuthenticationService:
                 detail=f"Error during sign in: {str(e)}"
             )
 
-    async def change_password(self, change_password_request: ChangePasswordRequest) -> None:
+    async def change_password(self, current_user, change_password_request: ChangePasswordRequest) -> None:
         try:
-            current_user = await self.user_service.get_current_user()
             if not current_user:
                 raise UnauthorizedException("User not authenticated")
 

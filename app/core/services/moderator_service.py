@@ -8,10 +8,9 @@ class ModeratorService(UserService):
         super().__init__(db)
         self.post_service = post_service
 
-    async def set_decision(self, post_id: int, decision: str) -> None:
+    async def set_decision(self, current_user, post_id: int, decision: str) -> None:
         """Set post status after moderation"""
         post = await self.post_service.get_post_by_id(post_id)
-        current_user = await self.get_current_user()
 
         if current_user.role != "ROLE_MODERATOR":
             raise UnauthorizedException("Only moderators can make decisions on posts")
