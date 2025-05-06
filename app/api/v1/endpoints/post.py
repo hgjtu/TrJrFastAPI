@@ -1,7 +1,9 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi.exceptions import RequestValidationError
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional, List
+from pydantic_core import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.post import PostRequest, PostResponse, PageResponse, PageResponseWrapper
@@ -60,8 +62,11 @@ async def create_post(
     try:
         post_data = json.loads(await post.read())
         post_obj = PostRequest(**post_data) 
-    except json.JSONDecodeError:
-        raise HTTPException(400, "Invalid JSON in 'post' field")
+    except (json.JSONDecodeError, ValidationError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     
     minio_service = MinioService()
     post_service = PostService(
@@ -117,9 +122,11 @@ async def update_post(
     try:
         post_data = json.loads(await post.read())
         post_obj = PostRequest(**post_data) 
-    except json.JSONDecodeError:
-        raise HTTPException(400, "Invalid JSON in 'post' field")
-    
+    except (json.JSONDecodeError, ValidationError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     minio_service = MinioService()
     post_service = PostService(
         db=db,

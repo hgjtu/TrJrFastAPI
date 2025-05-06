@@ -2,6 +2,7 @@ import json
 from fastapi import APIRouter, Depends, Form, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
+from pydantic_core import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.config import get_settings
 
@@ -75,8 +76,11 @@ async def update_user(
     try:
         user_data = json.loads(await user.read())
         user_obj = UserEditRequest(**user_data) 
-    except json.JSONDecodeError:
-        raise HTTPException(400, "Invalid JSON in 'user' field")
+    except (json.JSONDecodeError, ValidationError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     
     minio_service = MinioService()
     user_service = UserService(db, minio_service)
