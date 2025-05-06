@@ -200,3 +200,25 @@ class UserService:
             return await post.is_liked_by(current_user_id)
         except Exception:
             return False
+        
+    async def add_like(self, current_user, post: Post) -> None:
+        try:
+            if not await post.is_liked_by(current_user.id):
+                post.liked_users.append(current_user)
+                await self.save(post)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error adding like: {str(e)}"
+            )
+
+    async def delete_like(self, current_user, post: Post) -> None:
+        try:
+            if await post.is_liked_by(current_user.id):
+                post.liked_users.remove(current_user)
+                await self.save(post)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error deleting like: {str(e)}"
+            )

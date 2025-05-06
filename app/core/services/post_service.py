@@ -121,7 +121,7 @@ class PostService:
             if(current_user is not None):
                 is_liked = await self.user_service.is_liked_post(current_user.id, post)
 
-            if post.status == PostStatus.STATUS_DENIED:
+            if post.status == PostStatus.STATUS_DENIED and current_user.username != post.author.username:
                 raise UnauthorizedException("You are not authorized to view this post")
 
             return PostResponse(
@@ -174,10 +174,10 @@ class PostService:
             is_liked = await self.user_service.is_liked_post(current_user.id, post)
             if is_liked:
                 post.likes -= 1
-                await self.user_service.delete_like(post)
+                await self.user_service.delete_like(current_user, post)
             else:
                 post.likes += 1
-                await self.user_service.add_like(post)
+                await self.user_service.add_like(current_user, post)
 
             await self.save(post)
             return post.likes
@@ -199,7 +199,7 @@ class PostService:
             if post.author.username != current_user.username and current_user.role != Role.ROLE_ADMIN:
                 raise UnauthorizedException("You are not authorized to resubmit this post")
 
-            if post.status != PostStatus.STATUS_REJECTED:
+            if post.status != PostStatus.STATUS_DENIED:
                 raise BadRequestException("Only rejected posts can be resubmitted")
 
             post.status = PostStatus.STATUS_NOT_CHECKED
@@ -253,7 +253,6 @@ class PostService:
         try:
             query = select(Post)
 
-            # Apply filters based on sort
             if sort == "my-posts":
                 try:
                     if(current_user is not None):

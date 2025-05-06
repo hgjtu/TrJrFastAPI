@@ -8,7 +8,11 @@ class Role(str, Enum):
 class PostStatus(str, Enum):
     STATUS_NOT_CHECKED = "STATUS_NOT_CHECKED"
     STATUS_VERIFIED = "STATUS_VERIFIED"
-    STATUS_DENIED = "STATUS_DENIED"
+    STATUS_DENIED = "STATUS_VERIFIED"
+
+class PostFilter(str, Enum):
+    MY_POST = "my-posts"
+    MODERATOR = "moderator"
 
 class PostSort(str, Enum):
     DATE_ASC = "date_asc"

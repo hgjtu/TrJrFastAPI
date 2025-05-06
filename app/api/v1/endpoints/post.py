@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional, List
@@ -18,11 +19,11 @@ router = APIRouter(
 )
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-@router.get("/get-posts-data", response_model=PageResponse[PostResponse])
+@router.get("/get-posts-data")
 async def get_posts(
     page: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    sort: PostSort = Query(PostSort.DATE_DESC),
+    sort: str = "latest",
     search: Optional[str] = None,
     token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
@@ -40,7 +41,7 @@ async def get_posts(
         current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.find_all_posts(page, limit, sort.value, search, current_user)
+        return await post_service.find_all_posts(page, limit, sort, search, current_user)
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -49,13 +50,19 @@ async def get_posts(
             detail=f"Error finding posts: {str(e)}"
         )
 
-@router.post("/create-post", response_model=PostResponse)
+@router.post("/create-post")
 async def create_post(
-    post: PostRequest,
+    post: UploadFile = File(...),
     image: Optional[UploadFile] = File(None),
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
+    try:
+        post_data = json.loads(await post.read())
+        post_obj = PostRequest(**post_data) 
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Invalid JSON in 'post' field")
+    
     minio_service = MinioService()
     post_service = PostService(
         db=db,
@@ -67,14 +74,14 @@ async def create_post(
     current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.create_post(current_user, post, image)
+        return await post_service.create_post(current_user, post_obj, image)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
 
-@router.get("/get-post-data/{post_id}", response_model=PostResponse)
+@router.get("/get-post-data/{post_id}")
 async def get_post(
     post_id: int,
     token: Optional[str] = Depends(oauth2_scheme),
@@ -93,20 +100,26 @@ async def get_post(
         current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.get_post_by_id(current_user, post_id)
+        return await post_service.get_post_data(post_id, current_user)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
 
-@router.put("/update-post-data", response_model=PostResponse)
+@router.put("/update-post-data")
 async def update_post(
-    post: PostRequest,
+    post: UploadFile = File(...),
     image: Optional[UploadFile] = File(None),
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
+    try:
+        post_data = json.loads(await post.read())
+        post_obj = PostRequest(**post_data) 
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Invalid JSON in 'post' field")
+    
     minio_service = MinioService()
     post_service = PostService(
         db=db,
@@ -118,7 +131,7 @@ async def update_post(
     current_user = await user_service.get_current_user(token)
     
     try:
-        return await post_service.update_post_data(current_user, post, image)
+        return await post_service.update_post_data(current_user, post_obj, image)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -167,8 +180,7 @@ async def like_post(
     current_user = await user_service.get_current_user(token)
     
     try:
-        await post_service.like_post(current_user, post_id)
-        return {"message": "Post liked successfully"}
+        return await post_service.like_post(current_user, post_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -200,7 +212,7 @@ async def resubmit_post(
             detail=str(e)
         )
 
-@router.get("/get-recommended-posts-data", response_model=PageResponse[PostResponse])
+@router.get("/get-recommended-posts-data")
 async def get_recommended_posts(
     db: AsyncSession = Depends(get_db)
 ):

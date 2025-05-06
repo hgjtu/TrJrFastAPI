@@ -39,6 +39,7 @@ class ChangePasswordRequest(BaseModel):
         return v
 
 class UserEditRequest(BaseModel):
+    username: str = Field(..., description="Логин пользователя", example="Jon2000")
     email: EmailStr = Field(
         ...,
         min_length=5,
@@ -48,7 +49,7 @@ class UserEditRequest(BaseModel):
     )
 
 class UserMinResponse(BaseModel):
-    user: dict  # Здесь будет UserForResponse из другого модуля
+    user: UserForResponse
 
 class UserResponse(BaseModel):
     username: str = Field(..., description="Логин пользователя", example="Jon2000")

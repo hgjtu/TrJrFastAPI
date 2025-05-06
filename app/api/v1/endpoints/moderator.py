@@ -27,7 +27,7 @@ async def set_decision(
         user_service=UserService(db, minio_service),
         minio_service=minio_service
     )
-    moderator_service = ModeratorService(db, post_service)
+    moderator_service = ModeratorService(db, post_service, minio_service)
     
     user_service = UserService(db, minio_service)
     current_user = await user_service.get_current_user(token)
