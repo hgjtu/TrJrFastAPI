@@ -1,24 +1,18 @@
 from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional
 from app.models.enums import Role
+from pydantic import validator
 
 class UserForResponse(BaseModel):
-    """Объект пользователя для респонса"""
-    username: str = Field(
-        ...,
-        description="Имя пользователя",
-        example="Jon"
-    )
-    image: Optional[str] = Field(
-        None,
-        description="base64 изображение",
-        example="none-user-img"
-    )
-    role: Role = Field(
-        ...,
-        description="Роль пользователя",
-        example="USER"
-    )
+    username: str
+    image: Optional[str] = None
+    role: Role
+
+    @validator('role', pre=True)
+    def convert_role_to_enum(cls, v):
+        if isinstance(v, str):
+            return Role(v)
+        return v
 
 class ChangePasswordRequest(BaseModel):
     oldPassword: str = Field(

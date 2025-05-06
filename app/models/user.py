@@ -23,7 +23,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
-    image_name = Column(String, nullable=False, default="default-user-img")
+    image_name = Column(String, nullable=False, default="default-user-img.png")
     role = Column(SQLEnum(Role), nullable=False, default=Role.ROLE_USER)
 
     # Relationships

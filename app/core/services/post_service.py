@@ -116,13 +116,13 @@ class PostService:
     async def get_post_data(self, post_id: int, current_user: Optional[User] = None) -> PostResponse:
         try:
             post = await self.get_post_by_id(post_id)
-            if not current_user:
-                raise UnauthorizedException("User not authenticated")
 
-            if post.status == PostStatus.STATUS_NOT_CHECKED and post.author.username != current_user.username:
+            is_liked = False
+            if(current_user is not None):
+                is_liked = await self.user_service.is_liked_post(current_user.id, post)
+
+            if post.status == PostStatus.STATUS_DENIED:
                 raise UnauthorizedException("You are not authorized to view this post")
-
-            is_liked = await self.user_service.is_liked_post(current_user.id, post)
 
             return PostResponse(
                 id=post.id,
@@ -256,7 +256,8 @@ class PostService:
             # Apply filters based on sort
             if sort == "my-posts":
                 try:
-                    query = query.where(Post.author_id == current_user.id)
+                    if(current_user is not None):
+                        query = query.where(Post.author_id == current_user.id)
                 except Exception:
                     raise UnauthorizedException("User not authenticated")
             elif sort == "moderator":
@@ -319,10 +320,9 @@ class PostService:
 
             content = []
             for post in posts:
-                try:
+                is_liked = False
+                if(current_user is not None):
                     is_liked = await self.user_service.is_liked_post(current_user.id, post)
-                except Exception:
-                    is_liked = False
                 content.append(PostResponse(
                     id=post.id,
                     title=post.title,

@@ -144,19 +144,22 @@ class UserService:
                 detail=f"Error getting user data: {str(e)}"
             )
 
-    async def get_user_min_data(self, current_user) -> Optional[UserForResponse]:
+    async def get_user_min_data(self, current_user) -> UserForResponse:
         try:
             if not current_user:
-                raise UnauthorizedException("User not authenticated")
+                raise UnauthorizedException(f"User not authenticated")
             
-            # image=await self.minio_service.get_file_as_base64(current_user.image_name)
+            try:
+                image_db=await self.minio_service.get_file_as_base64(current_user.image_name)
+            except Exception as e:
+                image_db = None
 
             return UserForResponse(
                 username=current_user.username,
-                image=None,
-                role=current_user.role,
-                # image=None
+                image=image_db,
+                role=current_user.role
             )
+        
         except HTTPException:
             raise
         except Exception as e:
@@ -176,18 +179,18 @@ class UserService:
 
     async def get_current_user(self, token) -> User:
         try:
-            jwt_service = JWTService()
-            
-            # Verify and decode the token
-            payload = jwt_service.verify_token(token)
-            if payload is None:
-                raise UnauthorizedException(f"Invalid authentication credentials {token}")
-            
-            user = await self.get_by_username(payload.get("sub"))
-            if user is None:
-                raise UnauthorizedException("User not found")
-            
-            return user
+            if token is not None:
+                jwt_service = JWTService()
+                # Verify and decode the token
+                payload = jwt_service.verify_token(token)
+                if payload is None:
+                    raise UnauthorizedException(f"Invalid authentication credentials")
+                user = await self.get_by_username(payload.get("sub"))
+                if user is None:
+                    raise UnauthorizedException("User not found")
+                
+                return user
+            else: return None
 
         except Exception as e:
             raise UnauthorizedException(f"Authentication error: {str(e)}")

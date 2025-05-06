@@ -28,23 +28,35 @@ router = APIRouter(
 )
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/sign-in")
 
-@router.get("/check-session", response_model=UserForResponse)
+@router.get("/check-session")
 async def check_session(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     minio_service = MinioService()
     user_service = UserService(db, minio_service)
-    current_user = await user_service.get_current_user(token)
     try:
-        return await user_service.get_user_min_data(current_user)
+        current_user = await user_service.get_current_user(token)
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
+        
+        user_data = await user_service.get_user_min_data(current_user)
+
+        # raise Exception(user_data)
+        
+        return user_data
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
         )
 
-@router.get("/get-user-data", response_model=UserResponse)
+@router.get("/get-user-data")
 async def get_user_data(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
@@ -60,7 +72,7 @@ async def get_user_data(
             detail=str(e)
         )
 
-@router.put("/update-user-data", response_model=UserResponse)
+@router.put("/update-user-data")
 async def update_user(
     user: UserEditRequest,
     image: Optional[UploadFile] = File(None),

@@ -35,7 +35,7 @@ async def get_posts(
     )
 
     current_user = None
-    if(token != None):
+    if(token is not None):
         user_service = UserService(db, minio_service)
         current_user = await user_service.get_current_user(token)
     
@@ -88,7 +88,7 @@ async def get_post(
     )
 
     current_user = None
-    if(token != None):
+    if(token is not None):
         user_service = UserService(db, minio_service)
         current_user = await user_service.get_current_user(token)
     
